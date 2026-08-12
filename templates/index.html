@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FlipFlow</title>
+<style>
+  body {
+    font-family: system-ui, sans-serif;
+    max-width: 640px;
+    margin: 40px auto;
+    background: #f4f4f7;
+    color: #222;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 4px; }
+  p.subtitle { color: #666; margin-top: 0; }
+  form {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin: 12px 0 4px;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 8px;
+    font-size: 1rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+  }
+  button {
+    margin-top: 18px;
+    width: 100%;
+    padding: 12px;
+    font-size: 1rem;
+    border: none;
+    border-radius: 6px;
+    background: #2952cc;
+    color: white;
+    cursor: pointer;
+  }
+  #result {
+    margin-top: 20px;
+  }
+  .card {
+    background: white;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+  }
+  .verdict {
+    display: inline-block;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: white;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .stat { background: #f7f7fa; border-radius: 6px; padding: 10px; }
+  .stat .label { font-size: 0.75rem; color: #666; }
+  .stat .value { font-size: 1.1rem; font-weight: 700; }
+  ul { margin: 6px 0; padding-left: 20px; }
+  .risk { color: #c0392b; }
+  .reason { color: #1e824c; }
+</style>
+</head>
+<body>
+
+<h1>FlipFlow</h1>
+<p class="subtitle">Reseller Intelligence &amp; Opportunity Scoring</p>
+
+<form id="flip-form">
+  <label>Item title</label>
+  <input name="title" required placeholder="e.g. iPhone 12 64GB">
+
+  <div class="row">
+    <div>
+      <label>Asking price ($)</label>
+      <input name="asking_price" type="number" step="0.01" required>
+    </div>
+    <div>
+      <label>Estimated resale price ($)</label>
+      <input name="estimated_resale_price" type="number" step="0.01" required>
+    </div>
+  </div>
+
+  <label>Condition</label>
+  <select name="condition">
+    <option value="new">New</option>
+    <option value="like_new">Like new</option>
+    <option value="good" selected>Good</option>
+    <option value="fair">Fair</option>
+    <option value="poor">Poor</option>
+    <option value="unknown">Unknown</option>
+  </select>
+
+  <div class="row">
+    <div>
+      <label>Fees ($)</label>
+      <input name="estimated_fees" type="number" step="0.01" value="0">
+    </div>
+    <div>
+      <label>Shipping ($)</label>
+      <input name="estimated_shipping" type="number" step="0.01" value="0">
+    </div>
+    <div>
+      <label>Repairs ($)</label>
+      <input name="estimated_repairs" type="number" step="0.01" value="0">
+    </div>
+    <div>
+      <label>Other costs ($)</label>
+      <input name="other_costs" type="number" step="0.01" value="0">
+    </div>
+  </div>
+
+  <div class="row">
+    <div>
+      <label>Demand (0-100)</label>
+      <input name="demand_score" type="number" min="0" max="100" value="50">
+    </div>
+    <div>
+      <label>Sell speed (0-100)</label>
+      <input name="sell_speed_score" type="number" min="0" max="100" value="50">
+    </div>
+    <div>
+      <label>Confidence (0-100)</label>
+      <input name="confidence_score" type="number" min="0" max="100" value="50">
+    </div>
+  </div>
+
+  <label>Notes (optional)</label>
+  <textarea name="notes" rows="2"></textarea>
+
+  <button type="submit">Analyze</button>
+</form>
+
+<div id="result"></div>
+
+<script>
+  const form = document.getElementById("flip-form");
+  const resultDiv = document.getElementById("result");
+
+  const VERDICT_COLORS = {
+    "STRONG BUY": "#1e824c",
+    "BUY": "#3a9d5d",
+    "NEGOTIATE": "#c8940a",
+    "CAUTION": "#d9822b",
+    "PASS": "#c0392b"
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+
+    // FormData reads every input in the form by its "name" attribute.
+    // We convert it into a plain object matching FlipRequest's fields -
+    // numbers need converting since form values always start as strings.
+    const formData = new FormData(form);
+    const payload = {
+      title: formData.get("title"),
+      asking_price: parseFloat(formData.get("asking_price")),
+      estimated_resale_price: parseFloat(formData.get("estimated_resale_price")),
+      condition: formData.get("condition"),
+      estimated_fees: parseFloat(formData.get("estimated_fees")),
+      estimated_shipping: parseFloat(formData.get("estimated_shipping")),
+      estimated_repairs: parseFloat(formData.get("estimated_repairs")),
+      other_costs: parseFloat(formData.get("other_costs")),
+      demand_score: parseFloat(formData.get("demand_score")),
+      sell_speed_score: parseFloat(formData.get("sell_speed_score")),
+      confidence_score: parseFloat(formData.get("confidence_score")),
+      notes: formData.get("notes") || null
+    };
+
+    resultDiv.innerHTML = "<p>Analyzing...</p>";
+
+    const response = await fetch("/analyze", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      resultDiv.innerHTML = "<p>Something went wrong - check your inputs.</p>";
+      return;
+    }
+
+    const data = await response.json();
+    const color = VERDICT_COLORS[data.verdict] || "#666";
+
+    resultDiv.innerHTML = `
+      <div class="card">
+        <span class="verdict" style="background:${color}">${data.verdict}</span>
+        <div class="stats">
+          <div class="stat"><div class="label">Opportunity score</div><div class="value">${data.opportunity_score}/100</div></div>
+          <div class="stat"><div class="label">Projected profit</div><div class="value">$${data.projected_profit}</div></div>
+          <div class="stat"><div class="label">ROI</div><div class="value">${data.roi_percent}%</div></div>
+          <div class="stat"><div class="label">Max buy price</div><div class="value">$${data.max_buy_price}</div></div>
+        </div>
+        ${data.reasons.length ? `<ul>${data.reasons.map(r => `<li class="reason">${r}</li>`).join("")}</ul>` : ""}
+        ${data.risk_flags.length ? `<ul>${data.risk_flags.map(r => `<li class="risk">${r}</li>`).join("")}</ul>` : ""}
+      </div>
+    `;
+  });
+</script>
+
+</body>
+</html>

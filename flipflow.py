@@ -3,7 +3,8 @@
 # Reseller Intelligence & Opportunity Scoring Engine
 # ============================================================
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict
 from enum import Enum
@@ -14,6 +15,8 @@ app = FastAPI(
     description="Reseller Intelligence and Opportunity Scoring Engine",
     version="1.0.0",
 )
+
+templates = Jinja2Templates(directory="templates")
 
 
 # ============================================================
@@ -280,6 +283,14 @@ def health():
 @app.post("/analyze", response_model=FlipAnalysis)
 def analyze(item: FlipRequest):
     return analyze_flip(item)
+
+
+@app.get("/ui")
+def ui(request: Request):
+    # Jinja2Templates needs the actual Request object to render, even though
+    # this route doesn't otherwise use it - that's a FastAPI/Starlette
+    # requirement, not something specific to this page.
+    return templates.TemplateResponse(request, "index.html")
 
 
 # Run locally with:
