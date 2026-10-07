@@ -2,3 +2,4 @@ fastapi
 uvicorn
 pydantic
 jinja2
+openai==3.26.0

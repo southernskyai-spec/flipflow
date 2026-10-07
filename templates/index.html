@@ -263,5 +263,82 @@
   });
 </script>
 
+<script>
+(() => {
+  const form = document.getElementById("flip-form");
+  if (document.getElementById("ask-ai")) return;
+
+  const button = document.createElement("button");
+  button.id = "ask-ai";
+  button.type = "button";
+  button.textContent = "Ask AI: risks and seller questions";
+  form.appendChild(button);
+
+  const output = document.createElement("div");
+  output.className = "card";
+  output.style.marginTop = "20px";
+  output.style.whiteSpace = "pre-wrap";
+  output.hidden = true;
+  output.setAttribute("role", "status");
+  form.insertAdjacentElement("afterend", output);
+
+  form.querySelectorAll('input[type="number"]').forEach(input => {
+    input.min = "0";
+    input.step = "any";
+  });
+  form.elements.title.minLength = 2;
+
+  button.addEventListener("click", async () => {
+    if (!form.reportValidity()) return;
+
+    const values = new FormData(form);
+    const payload = {
+      title: values.get("title"),
+      asking_price: Number(values.get("asking_price")),
+      estimated_resale_price: Number(values.get("estimated_resale_price")),
+      condition: values.get("condition"),
+      notes: values.get("notes") || null
+    };
+
+    button.disabled = true;
+    output.hidden = false;
+    output.textContent = "Reviewing with AI...";
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 45000);
+
+    try {
+      const response = await fetch("/ai-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      if (response.status === 404) {
+        throw new Error("AI route not found. Restart the updated server.");
+      }
+      const data = await response.json();
+      if (!response.ok) {
+        const detail = Array.isArray(data.detail)
+          ? data.detail.map(e => e.loc.join(".") + ": " + e.msg).join("\n")
+          : data.detail;
+        throw new Error(detail || "AI review failed.");
+      }
+      if (typeof data.review !== "string") {
+        throw new Error("Unexpected response from the server.");
+      }
+      output.textContent = data.review;
+    } catch (error) {
+      output.textContent = error.name === "AbortError"
+        ? "Request timed out. Please try again."
+        : error instanceof TypeError
+          ? "Cannot reach the server. Check that FlipFlow is running."
+          : error.message;
+    } finally {
+      clearTimeout(timer);
+      button.disabled = false;
+    }
+  });
+})();
+</script>
 </body>
 </html>
